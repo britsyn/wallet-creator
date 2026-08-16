@@ -1,0 +1,1424 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Wallet</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        :root {
+            --ios-blue: #007AFF;
+            --ios-green: #34C759;
+            --ios-red: #FF3B30;
+            --ios-gray: #8E8E93;
+            --ios-gray2: #AEAEB2;
+            --ios-gray3: #C7C7CC;
+            --ios-bg: #F2F2F7;
+            --ios-card: #FFFFFF;
+            --ios-separator: rgba(60, 60, 67, 0.12);
+        }
+
+        html, body {
+            height: 100%;
+            overflow: hidden;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--ios-bg);
+            color: #000;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .app {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            max-width: 500px;
+            margin: 0 auto;
+            position: relative;
+        }
+
+        .nav-bar {
+            background-color: rgba(242, 242, 247, 0.92);
+            backdrop-filter: saturate(180%) blur(20px);
+            -webkit-backdrop-filter: saturate(180%) blur(20px);
+            padding: 12px 20px;
+            padding-top: max(12px, env(safe-area-inset-top));
+            border-bottom: 0.5px solid var(--ios-separator);
+            z-index: 100;
+            flex-shrink: 0;
+        }
+
+        .nav-title {
+            font-size: 34px;
+            font-weight: 700;
+            letter-spacing: 0.37px;
+            color: #000;
+            text-align: center;
+        }
+
+        .content {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .upload-zone {
+            width: 100%;
+            aspect-ratio: 1.2;
+            max-height: 320px;
+            background-color: var(--ios-card);
+            border-radius: 24px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            border: 2.5px dashed var(--ios-gray3);
+            transition: all 0.35s cubic-bezier(0.25, 0.8, 0.25, 1);
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+            margin-bottom: 24px;
+        }
+
+        .upload-zone:hover {
+            border-color: var(--ios-blue);
+            background-color: rgba(0, 122, 255, 0.03);
+        }
+
+        .upload-zone.dragover {
+            border-color: var(--ios-blue);
+            background-color: rgba(0, 122, 255, 0.06);
+            transform: scale(1.02);
+        }
+
+        .upload-actions {
+            display: none;
+            flex-direction: column;
+            gap: 10px;
+            width: 100%;
+            max-width: 280px;
+            margin-top: 12px;
+        }
+
+        .upload-actions.visible {
+            display: flex;
+        }
+
+        .upload-action-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            width: 100%;
+            padding: 16px;
+            font-size: 17px;
+            font-weight: 600;
+            background-color: var(--ios-bg);
+            color: var(--ios-blue);
+            border: none;
+            border-radius: 14px;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
+            -webkit-appearance: none;
+            letter-spacing: -0.2px;
+        }
+
+        .upload-action-btn:hover {
+            background-color: rgba(0, 122, 255, 0.08);
+        }
+
+        .upload-action-btn:active {
+            transform: scale(0.97);
+            background-color: rgba(0, 122, 255, 0.15);
+        }
+
+        .upload-action-btn:disabled {
+            opacity: 0.4;
+            pointer-events: none;
+        }
+
+        .upload-action-icon {
+            font-size: 20px;
+        }
+
+        .upload-zone.processing {
+            border-style: solid;
+            border-color: var(--ios-blue);
+            pointer-events: none;
+        }
+
+        .upload-zone.hidden {
+            opacity: 0;
+            transform: scale(0.9) translateY(-20px);
+            pointer-events: none;
+            margin-bottom: 0;
+            height: 0;
+            aspect-ratio: auto;
+            border: none;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        .upload-icon {
+            width: 56px;
+            height: 56px;
+            color: var(--ios-gray2);
+            transition: color 0.3s;
+        }
+
+        .upload-zone:hover .upload-icon {
+            color: var(--ios-blue);
+        }
+
+        .upload-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #000;
+        }
+
+        .upload-subtitle {
+            font-size: 15px;
+            color: var(--ios-gray);
+        }
+
+        .file-input {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            cursor: pointer;
+            z-index: 10;
+        }
+
+        .processing-spinner {
+            display: none;
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--ios-separator);
+            border-top-color: var(--ios-blue);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        .processing-spinner.active {
+            display: block;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .processing-text {
+            display: none;
+            font-size: 17px;
+            font-weight: 500;
+            color: var(--ios-blue);
+        }
+
+        .processing-text.active {
+            display: block;
+        }
+
+        .pass-card {
+            width: 100%;
+            max-width: 340px;
+            border-radius: 24px;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255,255,255,0.1) inset;
+            position: relative;
+            opacity: 0;
+            transform: scale(0.8) translateY(40px);
+            transition: all 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+            pointer-events: none;
+            margin-bottom: 24px;
+        }
+
+        .pass-card.active {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+            pointer-events: auto;
+        }
+
+        .pass-card-inner {
+            padding: 24px;
+            color: #fff;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .pass-card-bg {
+            position: absolute;
+            inset: 0;
+            z-index: 0;
+            opacity: 0.95;
+        }
+
+        .pass-card-content {
+            position: relative;
+            z-index: 1;
+        }
+
+        .pass-card-header {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin-bottom: 20px;
+        }
+
+        .pass-card-icon {
+            width: 52px;
+            height: 52px;
+            background: rgba(255,255,255,0.25);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 26px;
+            border: 1px solid rgba(255,255,255,0.3);
+            flex-shrink: 0;
+        }
+
+        .pass-card-org {
+            font-size: 13px;
+            font-weight: 500;
+            opacity: 0.85;
+            letter-spacing: -0.08px;
+            margin-bottom: 2px;
+        }
+
+        .pass-card-title {
+            font-size: 22px;
+            font-weight: 700;
+            letter-spacing: -0.2px;
+            line-height: 1.2;
+        }
+
+        .pass-card-strip {
+            height: 60px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .pass-card-strip::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: rgba(255,255,255,0.2);
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+        .barcode {
+            height: 36px;
+            width: 75%;
+            background: repeating-linear-gradient(
+                90deg,
+                #fff 0px,
+                #fff 2px,
+                transparent 2px,
+                transparent 4px,
+                #fff 4px,
+                #fff 5px,
+                transparent 5px,
+                transparent 7px,
+                #fff 7px,
+                #fff 10px,
+                transparent 10px,
+                transparent 12px
+            );
+            position: relative;
+            z-index: 1;
+        }
+
+        .pass-card-primary {
+            text-align: center;
+            margin-bottom: 16px;
+        }
+
+        .pass-card-primary-value {
+            font-size: 28px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            line-height: 1.2;
+        }
+
+        .pass-card-fields {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .pass-card-field {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-top: 0.5px solid rgba(255,255,255,0.25);
+        }
+
+        .pass-card-field-label {
+            font-size: 13px;
+            font-weight: 500;
+            opacity: 0.8;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .pass-card-field-value {
+            font-size: 16px;
+            font-weight: 600;
+            text-align: right;
+            max-width: 65%;
+        }
+
+        .status {
+            width: 100%;
+            max-width: 340px;
+            text-align: center;
+            font-size: 15px;
+            font-weight: 500;
+            color: var(--ios-gray);
+            min-height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 16px;
+            opacity: 0;
+            transform: translateY(-5px);
+            transition: all 0.3s ease;
+        }
+
+        .status.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .status.loading {
+            color: var(--ios-blue);
+        }
+
+        .status.success {
+            color: var(--ios-green);
+        }
+
+        .status.error {
+            color: var(--ios-red);
+        }
+
+        .qr-text {
+            width: 100%;
+            max-width: 340px;
+            padding: 14px 16px;
+            background-color: var(--ios-card);
+            border-radius: 14px;
+            font-size: 14px;
+            font-family: 'SF Mono', 'Menlo', monospace;
+            color: #000;
+            display: none;
+            margin-bottom: 16px;
+            border: 0.5px solid var(--ios-separator);
+            word-break: break-all;
+        }
+
+        .qr-text.visible {
+            display: block;
+            animation: fadeIn 0.4s ease;
+        }
+
+        .api-key-section {
+            width: 100%;
+            max-width: 340px;
+            display: none;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+
+        .api-key-section.visible {
+            display: flex;
+            animation: fadeIn 0.4s ease;
+        }
+
+        .api-key-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--ios-gray);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .api-key-input {
+            width: 100%;
+            padding: 14px 16px;
+            font-size: 16px;
+            background-color: var(--ios-card);
+            color: #000;
+            border: 0.5px solid var(--ios-separator);
+            border-radius: 14px;
+            outline: none;
+            font-family: 'SF Mono', 'Menlo', monospace;
+            transition: border-color 0.2s;
+        }
+
+        .api-key-input:focus {
+            border-color: var(--ios-blue);
+        }
+
+        .api-key-input::placeholder {
+            color: var(--ios-gray3);
+        }
+
+        .add-button {
+            width: 100%;
+            max-width: 340px;
+            padding: 18px;
+            font-size: 17px;
+            font-weight: 600;
+            background-color: var(--ios-green);
+            color: #fff;
+            border: none;
+            border-radius: 16px;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 16px;
+            -webkit-appearance: none;
+            letter-spacing: -0.2px;
+        }
+
+        .add-button.visible {
+            display: flex;
+            animation: fadeIn 0.5s ease 0.2s both;
+        }
+
+        .add-button:hover {
+            background-color: #2db84d;
+            transform: scale(1.02);
+        }
+
+        .add-button:active {
+            transform: scale(0.98);
+            background-color: #28a745;
+        }
+
+        .add-button:disabled {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .morph-overlay {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 999;
+            opacity: 0;
+        }
+
+        .morph-overlay.active {
+            opacity: 1;
+        }
+
+        .morph-shape {
+            position: absolute;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 24px;
+            transform: scale(0);
+            transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .morph-overlay.active .morph-shape {
+            transform: scale(1);
+        }
+
+        .retry-btn {
+            background: none;
+            border: none;
+            color: var(--ios-blue);
+            font-size: 17px;
+            font-weight: 600;
+            cursor: pointer;
+            padding: 8px 16px;
+            margin-top: 8px;
+            display: none;
+            -webkit-appearance: none;
+        }
+
+        .retry-btn.visible {
+            display: block;
+        }
+
+        .parsed-info {
+            width: 100%;
+            max-width: 340px;
+            display: none;
+            background: var(--ios-card);
+            border-radius: 16px;
+            padding: 16px;
+            margin-bottom: 16px;
+            border: 0.5px solid var(--ios-separator);
+        }
+
+        .parsed-info.visible {
+            display: block;
+            animation: fadeIn 0.4s ease;
+        }
+
+        .parsed-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 0.5px solid var(--ios-separator);
+        }
+
+        .parsed-row:last-child {
+            border-bottom: none;
+        }
+
+        .parsed-label {
+            font-size: 13px;
+            color: var(--ios-gray);
+            font-weight: 500;
+        }
+
+        .parsed-value {
+            font-size: 15px;
+            font-weight: 600;
+            text-align: right;
+            max-width: 65%;
+        }
+
+        @media (max-width: 400px) {
+            .pass-card-primary-value {
+                font-size: 24px;
+            }
+            .pass-card-title {
+                font-size: 20px;
+            }
+        }
+
+        .history-section {
+            width: 100%;
+            max-width: 340px;
+            margin-top: 32px;
+            padding-top: 24px;
+            border-top: 0.5px solid var(--ios-separator);
+            display: none;
+        }
+
+        .history-section.visible {
+            display: block;
+            animation: fadeIn 0.5s ease;
+        }
+
+        .history-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .history-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--ios-gray);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .history-clear {
+            background: none;
+            border: none;
+            color: var(--ios-red);
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            padding: 4px 8px;
+            -webkit-appearance: none;
+            opacity: 0.8;
+        }
+
+        .history-clear:hover {
+            opacity: 1;
+        }
+
+        .history-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .history-item {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 12px;
+            background-color: var(--ios-card);
+            border-radius: 16px;
+            border: 0.5px solid var(--ios-separator);
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
+        }
+
+        .history-item:hover {
+            background-color: rgba(0, 0, 0, 0.02);
+            transform: scale(1.01);
+        }
+
+        .history-item:active {
+            transform: scale(0.98);
+            background-color: rgba(0, 0, 0, 0.04);
+        }
+
+        .history-thumb {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            color: #fff;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+
+        .history-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .history-item-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #000;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            letter-spacing: -0.2px;
+        }
+
+        .history-item-meta {
+            font-size: 13px;
+            color: var(--ios-gray);
+            margin-top: 2px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .history-empty {
+            text-align: center;
+            padding: 24px;
+            color: var(--ios-gray);
+            font-size: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <div class="nav-bar">
+            <div class="nav-title">Wallet</div>
+        </div>
+
+        <div class="content">
+            <div class="upload-zone" id="uploadZone">
+                <input type="file" class="file-input" id="fileInput" accept=".png,.jpg,.jpeg,.pdf">
+                <svg class="upload-icon" id="uploadIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="17 8 12 3 7 8"/>
+                    <line x1="12" y1="3" x2="12" y2="15"/>
+                </svg>
+                <div class="upload-title" id="uploadTitle">Выбрать файл</div>
+                <div class="upload-subtitle">QR-код на картинке или PDF</div>
+                <div class="processing-spinner" id="spinner"></div>
+                <div class="processing-text" id="processingText">Ищем QR-код...</div>
+                <div class="upload-actions" id="uploadActions">
+                    <input type="file" class="file-input" id="galleryInput" accept="image/*">
+                    <input type="file" class="file-input" id="cameraInput" accept="image/*" capture="environment">
+                    <button class="upload-action-btn" id="galleryBtn" type="button">
+                        <span class="upload-action-icon">📸</span>
+                        <span>Выбрать из галереи</span>
+                    </button>
+                    <button class="upload-action-btn" id="cameraBtn" type="button">
+                        <span class="upload-action-icon">📷</span>
+                        <span>Сфотографировать</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="status" id="status"></div>
+
+            <div class="qr-text" id="qrText"></div>
+
+            <div class="pass-card" id="passCard">
+                <div class="pass-card-inner" id="passCardInner">
+                    <div class="pass-card-bg" id="passCardBg"></div>
+                    <div class="pass-card-content">
+                        <div class="pass-card-header">
+                            <div class="pass-card-icon" id="passIcon">🎫</div>
+                            <div>
+                                <div class="pass-card-org" id="passOrg">EVENT</div>
+                                <div class="pass-card-title" id="passTitle">---</div>
+                            </div>
+                        </div>
+                        <div class="pass-card-strip">
+                            <div class="barcode"></div>
+                        </div>
+                        <div class="pass-card-primary">
+                            <div class="pass-card-primary-value" id="passPrimary">---</div>
+                        </div>
+                        <div class="pass-card-fields" id="passFields"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="parsed-info" id="parsedInfo">
+                <div class="parsed-row">
+                    <span class="parsed-label">Название</span>
+                    <span class="parsed-value" id="parsedTitle">---</span>
+                </div>
+                <div class="parsed-row">
+                    <span class="parsed-label">Дата</span>
+                    <span class="parsed-value" id="parsedDate">---</span>
+                </div>
+                <div class="parsed-row">
+                    <span class="parsed-label">Место</span>
+                    <span class="parsed-value" id="parsedLocation">---</span>
+                </div>
+            </div>
+
+            <div class="api-key-section" id="apiKeySection">
+                <div class="api-key-label">API ключ WalletWallet</div>
+                <input type="text" class="api-key-input" id="apiKeyInput" placeholder="ww_live_..." autocomplete="off">
+            </div>
+
+            <button class="add-button" id="addButton">📱 Добавить в Wallet</button>
+
+            <button class="retry-btn" id="retryBtn">Выбрать другой файл</button>
+
+            <div class="history-section" id="historySection">
+                <div class="history-header">
+                    <div class="history-title">Мои карточки</div>
+                    <button class="history-clear" id="historyClear">Очистить историю</button>
+                </div>
+                <div class="history-list" id="historyList"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        const uploadZone = document.getElementById('uploadZone');
+        const fileInput = document.getElementById('fileInput');
+        const uploadIcon = document.getElementById('uploadIcon');
+        const uploadTitle = document.getElementById('uploadTitle');
+        const spinner = document.getElementById('spinner');
+        const processingText = document.getElementById('processingText');
+        const status = document.getElementById('status');
+        const qrText = document.getElementById('qrText');
+        const passCard = document.getElementById('passCard');
+        const passCardBg = document.getElementById('passCardBg');
+        const passIcon = document.getElementById('passIcon');
+        const passOrg = document.getElementById('passOrg');
+        const passTitle = document.getElementById('passTitle');
+        const passPrimary = document.getElementById('passPrimary');
+        const passFields = document.getElementById('passFields');
+        const parsedInfo = document.getElementById('parsedInfo');
+        const parsedTitle = document.getElementById('parsedTitle');
+        const parsedDate = document.getElementById('parsedDate');
+        const parsedLocation = document.getElementById('parsedLocation');
+        const apiKeySection = document.getElementById('apiKeySection');
+        const apiKeyInput = document.getElementById('apiKeyInput');
+        const addButton = document.getElementById('addButton');
+        const retryBtn = document.getElementById('retryBtn');
+        const galleryInput = document.getElementById('galleryInput');
+        const cameraInput = document.getElementById('cameraInput');
+        const historySection = document.getElementById('historySection');
+        const historyList = document.getElementById('historyList');
+        const historyClear = document.getElementById('historyClear');
+
+        let selectedFile = null;
+        let qrData = null;
+        let parsedData = null;
+        let isProcessing = false;
+
+        const GRADIENTS = [
+            'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+            'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+            'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+            'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
+            'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)',
+            'linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%)',
+            'linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)'
+        ];
+
+        const EVENT_ICONS = ['🎫', '🎵', '🎬', '🎭', '✈️', '🏨', '🎪', '🎯', '🏆', '🎨', '🎤', '🎸'];
+
+        function getApiKey() {
+            return localStorage.getItem('ww_api_key') || '';
+        }
+
+        function isMobile() {
+            return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1);
+        }
+
+        function updateUploadActions() {
+            const actions = document.getElementById('uploadActions');
+            if (isMobile()) {
+                actions.classList.add('visible');
+            }
+        }
+
+        function saveApiKey(key) {
+            localStorage.setItem('ww_api_key', key);
+        }
+
+        const HISTORY_KEY = 'ww_history';
+        const MAX_HISTORY = 5;
+
+        function getHistory() {
+            try {
+                return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+            } catch {
+                return [];
+            }
+        }
+
+        function saveHistoryItem(item) {
+            const history = getHistory();
+            history.unshift(item);
+            if (history.length > MAX_HISTORY) history.pop();
+            localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+        }
+
+        function clearHistory() {
+            localStorage.removeItem(HISTORY_KEY);
+            renderHistory();
+        }
+
+        function renderHistory() {
+            const history = getHistory();
+            historyList.innerHTML = '';
+
+            if (history.length === 0) {
+                historyList.innerHTML = '<div class="history-empty">Пока нет карточек</div>';
+                historySection.classList.remove('visible');
+                return;
+            }
+
+            historySection.classList.add('visible');
+            history.forEach(item => {
+                const el = document.createElement('div');
+                el.className = 'history-item';
+                el.innerHTML = `
+                    <div class="history-thumb" style="background: ${item.gradient}">
+                        ${item.icon}
+                    </div>
+                    <div class="history-info">
+                        <div class="history-item-title">${escapeHtml(item.title)}</div>
+                        <div class="history-item-meta">${escapeHtml(item.date || item.location || 'Карточка')}</div>
+                    </div>
+                `;
+                el.addEventListener('click', () => {
+                    if (item.shareUrl) {
+                        window.open(item.shareUrl, '_blank');
+                    }
+                });
+                historyList.appendChild(el);
+            });
+        }
+
+        function showStatus(message, type) {
+            status.textContent = message;
+            status.className = 'status visible ' + type;
+        }
+
+        function hideStatus() {
+            status.className = 'status';
+            status.textContent = '';
+        }
+
+        function setUploadState(state) {
+            uploadZone.classList.remove('processing', 'hidden');
+            spinner.classList.remove('active');
+            processingText.classList.remove('active');
+            uploadIcon.style.display = 'block';
+            uploadTitle.style.display = 'block';
+            document.querySelector('.upload-subtitle').style.display = 'block';
+
+            if (state === 'processing') {
+                uploadZone.classList.add('processing');
+                spinner.classList.add('active');
+                processingText.classList.add('active');
+                uploadIcon.style.display = 'none';
+                uploadTitle.style.display = 'none';
+                document.querySelector('.upload-subtitle').style.display = 'none';
+            } else if (state === 'hidden') {
+                uploadZone.classList.add('hidden');
+            } else if (state === 'empty') {
+                uploadIcon.style.display = 'block';
+                uploadTitle.style.display = 'block';
+                document.querySelector('.upload-subtitle').style.display = 'block';
+                uploadTitle.textContent = 'Выбрать файл';
+            } else if (state === 'filled') {
+                uploadTitle.textContent = 'Файл выбран';
+            }
+        }
+
+        function parseQrData(text) {
+            let title = 'Карточка';
+            let date = '';
+            let location = '';
+            let eventType = 'event';
+
+            if (text.startsWith('{') && text.endsWith('}')) {
+                try {
+                    const json = JSON.parse(text);
+                    title = json.event || json.title || json.name || json.subject || 'Карточка';
+                    date = json.date || json.datetime || json.time || json.start || json.when || '';
+                    location = json.location || json.place || json.venue || json.address || json.where || '';
+                    if (json.type) eventType = json.type;
+                } catch (e) {
+                    const titleMatch = text.match(/"title"\s*:\s*"([^"]+)"/i) || text.match(/"event"\s*:\s*"([^"]+)"/i);
+                    const dateMatch = text.match(/"date"\s*:\s*"([^"]+)"/i) || text.match(/"when"\s*:\s*"([^"]+)"/i);
+                    const locationMatch = text.match(/"location"\s*:\s*"([^"]+)"/i) || text.match(/"venue"\s*:\s*"([^"]+)"/i);
+                    if (titleMatch) title = titleMatch[1];
+                    if (dateMatch) date = dateMatch[1];
+                    if (locationMatch) location = locationMatch[1];
+                }
+            } else if (text.includes('|') || text.includes(';')) {
+                const parts = text.split(/[|;]/).map(s => s.trim()).filter(Boolean);
+                parts.forEach(part => {
+                    const lower = part.toLowerCase();
+                    if (lower.startsWith('event:') || lower.startsWith('title:')) {
+                        title = part.replace(/^(event|title)\s*:\s*/i, '');
+                    } else if (lower.startsWith('date:') || lower.startsWith('time:') || lower.startsWith('when:')) {
+                        date = part.replace(/^(date|time|when)\s*:\s*/i, '');
+                    } else if (lower.startsWith('loc:') || lower.startsWith('place:') || lower.startsWith('venue:') || lower.startsWith('where:')) {
+                        location = part.replace(/^(loc|place|venue|where)\s*:\s*/i, '');
+                    }
+                });
+            } else if (text.includes(',')) {
+                const parts = text.split(',').map(s => s.trim()).filter(Boolean);
+                parts.forEach((part, idx) => {
+                    const lower = part.toLowerCase();
+                    if (idx === 0) {
+                        title = part;
+                    } else if (/\d{4}[./\-]\d{2}[./\-]\d{2}/.test(part) || /^\d{1,2}[./\-]\d{1,2}[./\-]\d{2,4}$/.test(part)) {
+                        date = part;
+                    } else if (lower.startsWith('в ') || lower.startsWith('at ') || lower.includes('ул') || lower.includes('улица')) {
+                        location = part.replace(/^(в|at)\s+/i, '');
+                    } else if (!location && parts.length > 2) {
+                        location = part;
+                    }
+                });
+            } else if (text.includes('\n')) {
+                const lines = text.split('\n').map(s => s.trim()).filter(Boolean);
+                if (lines.length > 0) {
+                    title = lines[0];
+                    if (lines.length > 1) {
+                        const second = lines[1];
+                        if (/\d{4}[./\-]\d{2}[./\-]\d{2}/.test(second)) {
+                            date = second;
+                        } else {
+                            location = second;
+                        }
+                    }
+                    if (lines.length > 2) location = lines[2];
+                }
+            }
+
+            if (!date) {
+                const dateMatch = text.match(/\d{4}[./\-]\d{2}[./\-]\d{2}/);
+                if (dateMatch) date = dateMatch[0];
+            }
+
+            date = formatDate(date);
+
+            const lowerTitle = title.toLowerCase();
+            if (lowerTitle.includes('концерт') || lowerTitle.includes('concert')) eventType = 'music';
+            else if (lowerTitle.includes('кино') || lowerTitle.includes('film') || lowerTitle.includes('movie')) eventType = 'movie';
+            else if (lowerTitle.includes('самолет') || lowerTitle.includes('рейс') || lowerTitle.includes('flight')) eventType = 'flight';
+            else if (lowerTitle.includes('отель') || lowerTitle.includes('hotel')) eventType = 'hotel';
+            else if (lowerTitle.includes('музей') || lowerTitle.includes('museum')) eventType = 'museum';
+            else if (lowerTitle.includes('ресторан') || lowerTitle.includes('restaurant')) eventType = 'food';
+            else if (lowerTitle.includes('спорт') || lowerTitle.includes('match') || lowerTitle.includes('игра')) eventType = 'sports';
+
+            const icons = {
+                music: '🎵', movie: '🎬', flight: '✈️', hotel: '🏨',
+                museum: '🎭', food: '🍽️', sports: '⚽', event: '🎫', default: '🎫'
+            };
+
+            return {
+                title: title || 'Карточка',
+                date: date || '',
+                location: location || '',
+                eventType: eventType,
+                icon: icons[eventType] || icons.default,
+                raw: text
+            };
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return '';
+            const cleaned = dateStr.replace(/[^\d./\-]/g, '').trim();
+            if (!cleaned) return '';
+
+            const match = cleaned.match(/(\d{1,2})[./\-](\d{1,2})[./\-](\d{2,4})/);
+            if (!match) return cleaned;
+
+            let day = match[1].padStart(2, '0');
+            let month = match[2].padStart(2, '0');
+            let year = match[3];
+
+            if (year.length === 2) {
+                year = '20' + year;
+            }
+
+            if (parseInt(year) < 100) {
+                year = '20' + year;
+            }
+
+            const d = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+            if (isNaN(d.getTime())) return cleaned;
+
+            const dd = String(d.getDate()).padStart(2, '0');
+            const mm = String(d.getMonth() + 1).padStart(2, '0');
+            const yyyy = d.getFullYear();
+
+            if (match[3].length === 2 && parseInt(match[3]) > 50) {
+                return dd + '.' + mm + '.' + ('19' + match[3]);
+            }
+
+            return dd + '.' + mm + '.' + yyyy;
+        }
+
+        function renderPassCard(data) {
+            const gradient = GRADIENTS[Math.abs(hashCode(data.title)) % GRADIENTS.length];
+            passCardBg.style.background = gradient;
+            passIcon.textContent = data.icon;
+            passOrg.textContent = data.eventType.toUpperCase();
+            passTitle.textContent = data.title;
+            passPrimary.textContent = data.title;
+
+            passFields.innerHTML = '';
+            if (data.date) {
+                passFields.innerHTML += '<div class="pass-card-field"><span class="pass-card-field-label">Дата</span><span class="pass-card-field-value">' + escapeHtml(data.date) + '</span></div>';
+            }
+            if (data.location) {
+                passFields.innerHTML += '<div class="pass-card-field"><span class="pass-card-field-label">Место</span><span class="pass-card-field-value">' + escapeHtml(data.location) + '</span></div>';
+            }
+            if (!data.date && !data.location) {
+                passFields.innerHTML += '<div class="pass-card-field"><span class="pass-card-field-label">Тип</span><span class="pass-card-field-value">Карточка</span></div>';
+            }
+
+            passCard.classList.add('active');
+            parsedInfo.classList.add('visible');
+            parsedTitle.textContent = data.title;
+            parsedDate.textContent = data.date || '---';
+            parsedLocation.textContent = data.location || '---';
+        }
+
+        function hashCode(str) {
+            let hash = 0;
+            for (let i = 0; i < str.length; i++) {
+                const char = str.charCodeAt(i);
+                hash = ((hash << 5) - hash) + char;
+                hash = hash & hash;
+            }
+            return Math.abs(hash);
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        async function scanQrFromImage(file) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    ctx.drawImage(img, 0, 0);
+                    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    const code = jsQR(imageData.data, imageData.width, imageData.height);
+                    if (code) resolve(code.data);
+                    else reject(new Error('QR не найден'));
+                };
+                img.onerror = () => reject(new Error('Ошибка загрузки'));
+                img.src = URL.createObjectURL(file);
+            });
+        }
+
+        async function scanQrFromPdf(file) {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+            const arrayBuffer = await file.arrayBuffer();
+            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+            const page = await pdf.getPage(1);
+            const viewport = page.getViewport({ scale: 2.5 });
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = viewport.width;
+            canvas.height = viewport.height;
+            await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const code = jsQR(imageData.data, imageData.width, imageData.height);
+            if (code) return code.data;
+            throw new Error('QR не найден в PDF');
+        }
+
+        async function scanFile(file) {
+            isProcessing = true;
+            setUploadState('processing');
+            hideStatus();
+            qrText.classList.remove('visible');
+            passCard.classList.remove('active');
+            parsedInfo.classList.remove('visible');
+            addButton.classList.remove('visible');
+            apiKeySection.classList.remove('visible');
+            retryBtn.classList.remove('visible');
+
+            try {
+                if (file.type === 'application/pdf') {
+                    qrData = await scanQrFromPdf(file);
+                } else if (file.type.startsWith('image/')) {
+                    qrData = await scanQrFromImage(file);
+                } else {
+                    throw new Error('Неподдерживаемый формат');
+                }
+
+                parsedData = parseQrData(qrData);
+                qrText.textContent = qrData;
+                qrText.classList.add('visible');
+
+                setTimeout(() => {
+                    setUploadState('hidden');
+                    renderPassCard(parsedData);
+                }, 300);
+
+                showStatus('QR-код найден', 'success');
+                setTimeout(() => {
+                    if (getApiKey()) {
+                        addButton.classList.add('visible');
+                    } else {
+                        apiKeySection.classList.add('visible');
+                    }
+                    retryBtn.classList.add('visible');
+                }, 600);
+            } catch (error) {
+                qrData = null;
+                parsedData = null;
+                setUploadState('filled');
+                showStatus('QR-код не найден в этом файле', 'error');
+                retryBtn.classList.add('visible');
+            } finally {
+                isProcessing = false;
+            }
+        }
+
+        async function createWalletPass(data) {
+            const apiKey = getApiKey();
+            if (!apiKey) {
+                apiKeySection.classList.add('visible');
+                apiKeyInput.focus();
+                return;
+            }
+
+            showStatus('Создаём карточку...', 'loading');
+            addButton.disabled = true;
+
+            try {
+                const fields = {
+                    barcodeValue: data.raw,
+                    barcodeFormat: 'QR',
+                    logoText: data.title.length > 20 ? data.title.substring(0, 20) : data.title,
+                    description: data.title,
+                    primaryFields: [{ label: 'PASS', value: data.title }],
+                    colorPreset: 'dark'
+                };
+
+                if (data.date) fields.secondaryFields = [{ label: 'DATE', value: data.date }];
+                if (data.location) {
+                    if (!fields.secondaryFields) fields.secondaryFields = [];
+                    fields.secondaryFields.push({ label: 'LOCATION', value: data.location });
+                }
+
+                const response = await fetch('https://api.walletwallet.dev/api/passes', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + apiKey
+                    },
+                    body: JSON.stringify(fields)
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Ошибка создания');
+                }
+
+                const result = await response.json();
+                const shareUrl = result.shareUrl || ('https://api.walletwallet.dev/p/' + result.serialNumber);
+
+                saveHistoryItem({
+                    title: data.title,
+                    date: data.date,
+                    location: data.location,
+                    icon: data.icon,
+                    gradient: passCardBg.style.background,
+                    shareUrl: shareUrl,
+                    serial: result.serialNumber,
+                    createdAt: Date.now()
+                });
+                renderHistory();
+
+                window.open(shareUrl, '_blank');
+                showStatus('Карточка создана!', 'success');
+                setTimeout(hideStatus, 2000);
+            } catch (error) {
+                showStatus(error.message, 'error');
+                addButton.disabled = false;
+            }
+        }
+
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file || isProcessing) return;
+            selectedFile = file;
+            scanFile(file);
+        });
+
+        galleryInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file || isProcessing) return;
+            selectedFile = file;
+            scanFile(file);
+        });
+
+        cameraInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file || isProcessing) return;
+            selectedFile = file;
+            scanFile(file);
+        });
+
+        document.getElementById('galleryBtn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            galleryInput.click();
+        });
+
+        document.getElementById('cameraBtn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            cameraInput.click();
+        });
+
+        uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadZone.classList.add('dragover');
+        });
+
+        uploadZone.addEventListener('dragleave', () => {
+            uploadZone.classList.remove('dragover');
+        });
+
+        uploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file && !isProcessing) {
+                selectedFile = file;
+                scanFile(file);
+            }
+        });
+
+        addButton.addEventListener('click', () => {
+            if (parsedData) createWalletPass(parsedData);
+        });
+
+        apiKeyInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                const key = apiKeyInput.value.trim();
+                if (key) {
+                    saveApiKey(key);
+                    apiKeySection.classList.remove('visible');
+                    if (parsedData) {
+                        addButton.classList.add('visible');
+                        createWalletPass(parsedData);
+                    }
+                }
+            }
+        });
+
+        if (getApiKey()) {
+            apiKeyInput.value = getApiKey();
+        }
+
+        retryBtn.addEventListener('click', () => {
+            selectedFile = null;
+            qrData = null;
+            parsedData = null;
+            fileInput.value = '';
+            galleryInput.value = '';
+            cameraInput.value = '';
+            setUploadState('empty');
+            passCard.classList.remove('active');
+            parsedInfo.classList.remove('visible');
+            qrText.classList.remove('visible');
+            addButton.classList.remove('visible');
+            apiKeySection.classList.remove('visible');
+            retryBtn.classList.remove('visible');
+            document.getElementById('uploadActions').classList.remove('visible');
+            hideStatus();
+        });
+
+        historyClear.addEventListener('click', () => {
+            clearHistory();
+        });
+
+        renderHistory();
+
+        updateUploadActions();
+    </script>
+</body>
+</html>
