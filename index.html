@@ -762,9 +762,9 @@
                     <line x1="12" y1="3" x2="12" y2="15"/>
                 </svg>
                 <div class="upload-title" id="uploadTitle">Выбрать файл</div>
-                <div class="upload-subtitle">QR-код на картинке или PDF</div>
+                <div class="upload-subtitle">Штрих-код на картинке или PDF</div>
                 <div class="processing-spinner" id="spinner"></div>
-                <div class="processing-text" id="processingText">Ищем QR-код...</div>
+                <div class="processing-text" id="processingText">Ищем штрих-код...</div>
                 <div class="upload-actions" id="uploadActions">
                     <input type="file" class="file-input" id="galleryInput" accept="image/*">
                     <input type="file" class="file-input" id="cameraInput" accept="image/*" capture="environment">
@@ -839,14 +839,14 @@
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/dist/umd/index.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
     <script>
-        if (typeof jsQR === 'undefined') {
+        if (typeof ZXing === 'undefined') {
             document.addEventListener('DOMContentLoaded', () => {
                 const status = document.getElementById('status');
                 if (status) {
-                    status.textContent = 'Ошибка загрузки сканера QR. Обновите страницу.';
+                    status.textContent = 'Ошибка загрузки сканера. Обновите страницу.';
                     status.className = 'status visible error';
                 }
             });
@@ -883,6 +883,7 @@
         let selectedFile = null;
         let qrData = null;
         let parsedData = null;
+        let barcodeFormat = 'Code128';
         let isProcessing = false;
 
         const GRADIENTS = [
@@ -1173,46 +1174,68 @@
             return Math.abs(hash);
         }
 
+        function mapBarcodeFormat(zxingFormat) {
+            const format = zxingFormat ? zxingFormat.toString().toUpperCase() : '';
+            if (format.includes('QR')) return 'QR';
+            if (format.includes('PDF417')) return 'PDF417';
+            if (format.includes('AZTEC')) return 'Aztec';
+            if (format.includes('CODE_128') || format.includes('EAN') || format.includes('UPC') || format.includes('CODE_39') || format.includes('CODE_93') || format.includes('CODABAR') || format.includes('ITF')) return 'Code128';
+            return 'Code128';
+        }
+
         function escapeHtml(text) {
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
         }
 
-        async function scanQrFromImage(file) {
+        async function scanBarcodeFromImage(file) {
             return new Promise((resolve, reject) => {
                 const img = new Image();
-                img.onload = () => {
-                    const canvas = document.createElement('canvas');
-                    const ctx = canvas.getContext('2d');
-                    canvas.width = img.width;
-                    canvas.height = img.height;
-                    ctx.drawImage(img, 0, 0);
-                    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                    const code = jsQR(imageData.data, imageData.width, imageData.height);
-                    if (code) resolve(code.data);
-                    else reject(new Error('QR не найден'));
+                img.onload = async () => {
+                    try {
+                        const reader = new ZXing.BrowserMultiFormatReader();
+                        const result = await reader.decodeFromImage(undefined, img);
+                        const text = result.getText();
+                        const format = mapBarcodeFormat(result.getBarcodeFormat());
+                        resolve({ text, format });
+                    } catch (e) {
+                        reject(new Error('Штрих-код не найден'));
+                    }
                 };
                 img.onerror = () => reject(new Error('Ошибка загрузки'));
                 img.src = URL.createObjectURL(file);
             });
         }
 
-        async function scanQrFromPdf(file) {
+        async function scanBarcodeFromPdf(file) {
             pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
             const arrayBuffer = await file.arrayBuffer();
             const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
             const page = await pdf.getPage(1);
-            const viewport = page.getViewport({ scale: 2.5 });
+            const viewport = page.getViewport({ scale: 3 });
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
             canvas.width = viewport.width;
             canvas.height = viewport.height;
             await page.render({ canvasContext: ctx, viewport: viewport }).promise;
-            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const code = jsQR(imageData.data, imageData.width, imageData.height);
-            if (code) return code.data;
-            throw new Error('QR не найден в PDF');
+            
+            const img = new Image();
+            await new Promise((resolve, reject) => {
+                img.onload = resolve;
+                img.onerror = reject;
+                img.src = canvas.toDataURL();
+            });
+            
+            try {
+                const reader = new ZXing.BrowserMultiFormatReader();
+                const result = await reader.decodeFromImage(undefined, img);
+                const text = result.getText();
+                const format = mapBarcodeFormat(result.getBarcodeFormat());
+                return { text, format };
+            } catch (e) {
+                throw new Error('Штрих-код не найден в PDF');
+            }
         }
 
         async function scanFile(file) {
@@ -1227,13 +1250,17 @@
             retryBtn.classList.remove('visible');
 
             try {
+                let result;
                 if (file.type === 'application/pdf') {
-                    qrData = await scanQrFromPdf(file);
+                    result = await scanBarcodeFromPdf(file);
                 } else if (file.type.startsWith('image/')) {
-                    qrData = await scanQrFromImage(file);
+                    result = await scanBarcodeFromImage(file);
                 } else {
                     throw new Error('Неподдерживаемый формат');
                 }
+
+                qrData = result.text;
+                barcodeFormat = result.format;
 
                 parsedData = parseQrData(qrData);
                 qrText.textContent = qrData;
@@ -1244,7 +1271,7 @@
                     renderPassCard(parsedData);
                 }, 300);
 
-                showStatus('QR-код найден', 'success');
+                showStatus('Штрих-код найден', 'success');
                 setTimeout(() => {
                     if (getApiKey()) {
                         addButton.classList.add('visible');
@@ -1257,7 +1284,7 @@
                 qrData = null;
                 parsedData = null;
                 setUploadState('filled');
-                showStatus('QR-код не найден в этом файле', 'error');
+                showStatus('Штрих-код не найден в этом файле', 'error');
                 retryBtn.classList.add('visible');
             } finally {
                 isProcessing = false;
@@ -1278,7 +1305,7 @@
             try {
                 const fields = {
                     barcodeValue: data.raw,
-                    barcodeFormat: 'QR',
+                    barcodeFormat: barcodeFormat,
                     logoText: data.title.length > 20 ? data.title.substring(0, 20) : data.title,
                     description: data.title,
                     primaryFields: [{ label: 'PASS', value: data.title }],
@@ -1407,6 +1434,7 @@
             selectedFile = null;
             qrData = null;
             parsedData = null;
+            barcodeFormat = 'Code128';
             fileInput.value = '';
             galleryInput.value = '';
             cameraInput.value = '';
