@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-eval' 'unsafe-inline' https:; object-src 'none';">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <title>Wallet</title>
     <style>
@@ -1190,22 +1191,38 @@
         }
 
         async function scanBarcodeFromImage(file) {
-            return new Promise((resolve, reject) => {
-                const img = new Image();
-                img.onload = async () => {
+            const img = new Image();
+            await new Promise((resolve, reject) => {
+                img.onload = resolve;
+                img.onerror = reject;
+                img.src = URL.createObjectURL(file);
+            });
+
+            try {
+                if (typeof ZXing !== 'undefined') {
                     try {
                         const reader = new ZXing.BrowserMultiFormatReader();
                         const result = await reader.decodeFromImage(undefined, img);
-                        const text = result.getText();
-                        const format = mapBarcodeFormat(result.getBarcodeFormat());
-                        resolve({ text, format });
-                    } catch (e) {
-                        reject(new Error('Штрих-код не найден'));
+                        return { text: result.getText(), format: mapBarcodeFormat(result.getBarcodeFormat()) };
+                    } catch (zxingError) {
+                        console.warn('ZXing failed, trying native detector:', zxingError);
                     }
-                };
-                img.onerror = () => reject(new Error('Ошибка загрузки'));
-                img.src = URL.createObjectURL(file);
-            });
+                }
+
+                if ('BarcodeDetector' in window) {
+                    const barcodeDetector = new BarcodeDetector({
+                        formats: ['code_128', 'ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_39', 'code_93', 'codabar', 'itf', 'qr_code', 'pdf417', 'aztec', 'data_matrix']
+                    });
+                    const barcodes = await barcodeDetector.detect(img);
+                    if (barcodes.length > 0) {
+                        return { text: barcodes[0].rawValue, format: mapBarcodeFormat(barcodes[0].format) };
+                    }
+                }
+
+                throw new Error('Штрих-код не найден');
+            } catch (e) {
+                throw new Error('Штрих-код не найден');
+            }
         }
 
         async function scanBarcodeFromPdf(file) {
@@ -1219,20 +1236,29 @@
             canvas.width = viewport.width;
             canvas.height = viewport.height;
             await page.render({ canvasContext: ctx, viewport: viewport }).promise;
-            
-            const img = new Image();
-            await new Promise((resolve, reject) => {
-                img.onload = resolve;
-                img.onerror = reject;
-                img.src = canvas.toDataURL();
-            });
-            
+
             try {
-                const reader = new ZXing.BrowserMultiFormatReader();
-                const result = await reader.decodeFromImage(undefined, img);
-                const text = result.getText();
-                const format = mapBarcodeFormat(result.getBarcodeFormat());
-                return { text, format };
+                if (typeof ZXing !== 'undefined') {
+                    try {
+                        const reader = new ZXing.BrowserMultiFormatReader();
+                        const result = await reader.decodeFromImage(undefined, canvas);
+                        return { text: result.getText(), format: mapBarcodeFormat(result.getBarcodeFormat()) };
+                    } catch (zxingError) {
+                        console.warn('ZXing failed for PDF, trying native detector:', zxingError);
+                    }
+                }
+
+                if ('BarcodeDetector' in window) {
+                    const barcodeDetector = new BarcodeDetector({
+                        formats: ['code_128', 'ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_39', 'code_93', 'codabar', 'itf', 'qr_code', 'pdf417', 'aztec', 'data_matrix']
+                    });
+                    const barcodes = await barcodeDetector.detect(canvas);
+                    if (barcodes.length > 0) {
+                        return { text: barcodes[0].rawValue, format: mapBarcodeFormat(barcodes[0].format) };
+                    }
+                }
+
+                throw new Error('Штрих-код не найден в PDF');
             } catch (e) {
                 throw new Error('Штрих-код не найден в PDF');
             }
