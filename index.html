@@ -1213,20 +1213,20 @@
                 }
             }
 
-            if (typeof ZXing !== 'undefined') {
-                try {
-                    const reader = new ZXing.BrowserMultiFormatReader();
-                    const result = await reader.decodeFromImage(undefined, img);
-                    return { text: result.getText(), format: mapBarcodeFormat(result.getBarcodeFormat()) };
-                } catch (zxingError) {
-                    console.warn('ZXing failed:', zxingError);
+                if (typeof ZXing !== 'undefined') {
+                    try {
+                        const reader = new ZXing.BrowserMultiFormatReader();
+                        const result = await reader.decodeFromImage(img);
+                        return { text: result.getText(), format: mapBarcodeFormat(result.getBarcodeFormat()) };
+                    } catch (zxingError) {
+                        console.warn('ZXing failed:', zxingError);
+                    }
                 }
-            }
 
             try {
                 await loadZXing();
                 const reader = new ZXing.BrowserMultiFormatReader();
-                const result = await reader.decodeFromImage(undefined, img);
+                const result = await reader.decodeFromImage(img);
                 return { text: result.getText(), format: mapBarcodeFormat(result.getBarcodeFormat()) };
             } catch (loadError) {
                 console.warn('Dynamic ZXing load failed:', loadError);
@@ -1264,7 +1264,7 @@
             if (typeof ZXing !== 'undefined') {
                 try {
                     const reader = new ZXing.BrowserMultiFormatReader();
-                    const result = await reader.decodeFromImage(undefined, canvas);
+                    const result = await reader.decodeFromImage(canvas);
                     return { text: result.getText(), format: mapBarcodeFormat(result.getBarcodeFormat()) };
                 } catch (zxingError) {
                     console.warn('ZXing failed for PDF:', zxingError);
@@ -1274,7 +1274,7 @@
             try {
                 await loadZXing();
                 const reader = new ZXing.BrowserMultiFormatReader();
-                const result = await reader.decodeFromImage(undefined, canvas);
+                const result = await reader.decodeFromImage(canvas);
                 return { text: result.getText(), format: mapBarcodeFormat(result.getBarcodeFormat()) };
             } catch (loadError) {
                 console.warn('Dynamic ZXing load failed for PDF:', loadError);
