@@ -840,18 +840,8 @@
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/dist/umd/index.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
     <script>
-        if (typeof ZXing === 'undefined') {
-            document.addEventListener('DOMContentLoaded', () => {
-                const status = document.getElementById('status');
-                if (status) {
-                    status.textContent = 'Ошибка загрузки сканера. Обновите страницу.';
-                    status.className = 'status visible error';
-                }
-            });
-        }
         const uploadZone = document.getElementById('uploadZone');
         const fileInput = document.getElementById('fileInput');
         const uploadIcon = document.getElementById('uploadIcon');
@@ -1190,6 +1180,17 @@
             return div.innerHTML;
         }
 
+        async function loadZXing() {
+            if (window._zxingLoaded) return true;
+            return new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = 'https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js';
+                script.onload = () => { window._zxingLoaded = true; resolve(true); };
+                script.onerror = () => reject(new Error('Не удалось загрузить сканер'));
+                document.head.appendChild(script);
+            });
+        }
+
         async function scanBarcodeFromImage(file) {
             const img = new Image();
             await new Promise((resolve, reject) => {
@@ -1198,18 +1199,8 @@
                 img.src = URL.createObjectURL(file);
             });
 
-            try {
-                if (typeof ZXing !== 'undefined') {
-                    try {
-                        const reader = new ZXing.BrowserMultiFormatReader();
-                        const result = await reader.decodeFromImage(undefined, img);
-                        return { text: result.getText(), format: mapBarcodeFormat(result.getBarcodeFormat()) };
-                    } catch (zxingError) {
-                        console.warn('ZXing failed, trying native detector:', zxingError);
-                    }
-                }
-
-                if ('BarcodeDetector' in window) {
+            if ('BarcodeDetector' in window) {
+                try {
                     const barcodeDetector = new BarcodeDetector({
                         formats: ['code_128', 'ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_39', 'code_93', 'codabar', 'itf', 'qr_code', 'pdf417', 'aztec', 'data_matrix']
                     });
@@ -1217,12 +1208,31 @@
                     if (barcodes.length > 0) {
                         return { text: barcodes[0].rawValue, format: mapBarcodeFormat(barcodes[0].format) };
                     }
+                } catch (nativeError) {
+                    console.warn('Native BarcodeDetector failed:', nativeError);
                 }
-
-                throw new Error('Штрих-код не найден');
-            } catch (e) {
-                throw new Error('Штрих-код не найден');
             }
+
+            if (typeof ZXing !== 'undefined') {
+                try {
+                    const reader = new ZXing.BrowserMultiFormatReader();
+                    const result = await reader.decodeFromImage(undefined, img);
+                    return { text: result.getText(), format: mapBarcodeFormat(result.getBarcodeFormat()) };
+                } catch (zxingError) {
+                    console.warn('ZXing failed:', zxingError);
+                }
+            }
+
+            try {
+                await loadZXing();
+                const reader = new ZXing.BrowserMultiFormatReader();
+                const result = await reader.decodeFromImage(undefined, img);
+                return { text: result.getText(), format: mapBarcodeFormat(result.getBarcodeFormat()) };
+            } catch (loadError) {
+                console.warn('Dynamic ZXing load failed:', loadError);
+            }
+
+            throw new Error('Штрих-код не найден');
         }
 
         async function scanBarcodeFromPdf(file) {
@@ -1237,18 +1247,8 @@
             canvas.height = viewport.height;
             await page.render({ canvasContext: ctx, viewport: viewport }).promise;
 
-            try {
-                if (typeof ZXing !== 'undefined') {
-                    try {
-                        const reader = new ZXing.BrowserMultiFormatReader();
-                        const result = await reader.decodeFromImage(undefined, canvas);
-                        return { text: result.getText(), format: mapBarcodeFormat(result.getBarcodeFormat()) };
-                    } catch (zxingError) {
-                        console.warn('ZXing failed for PDF, trying native detector:', zxingError);
-                    }
-                }
-
-                if ('BarcodeDetector' in window) {
+            if ('BarcodeDetector' in window) {
+                try {
                     const barcodeDetector = new BarcodeDetector({
                         formats: ['code_128', 'ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_39', 'code_93', 'codabar', 'itf', 'qr_code', 'pdf417', 'aztec', 'data_matrix']
                     });
@@ -1256,12 +1256,31 @@
                     if (barcodes.length > 0) {
                         return { text: barcodes[0].rawValue, format: mapBarcodeFormat(barcodes[0].format) };
                     }
+                } catch (nativeError) {
+                    console.warn('Native BarcodeDetector failed for PDF:', nativeError);
                 }
-
-                throw new Error('Штрих-код не найден в PDF');
-            } catch (e) {
-                throw new Error('Штрих-код не найден в PDF');
             }
+
+            if (typeof ZXing !== 'undefined') {
+                try {
+                    const reader = new ZXing.BrowserMultiFormatReader();
+                    const result = await reader.decodeFromImage(undefined, canvas);
+                    return { text: result.getText(), format: mapBarcodeFormat(result.getBarcodeFormat()) };
+                } catch (zxingError) {
+                    console.warn('ZXing failed for PDF:', zxingError);
+                }
+            }
+
+            try {
+                await loadZXing();
+                const reader = new ZXing.BrowserMultiFormatReader();
+                const result = await reader.decodeFromImage(undefined, canvas);
+                return { text: result.getText(), format: mapBarcodeFormat(result.getBarcodeFormat()) };
+            } catch (loadError) {
+                console.warn('Dynamic ZXing load failed for PDF:', loadError);
+            }
+
+            throw new Error('Штрих-код не найден в PDF');
         }
 
         async function scanFile(file) {
